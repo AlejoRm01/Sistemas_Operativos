@@ -1,6 +1,8 @@
 import argparse
 import csv
 import json
+import queue
+import threading
 import matplotlib.pyplot as plt
 
 def parsear_argumentos():
@@ -24,12 +26,12 @@ def leer_datos(archivo, formato):
             next(csv_reader)
             for fila in csv_reader:
                 datos.append({
-                    "fecha": fila[0],
-                    "apertura": float(fila[1]),
-                    "maximo": float(fila[2]),
-                    "minimo": float(fila[3]),
-                    "cierre": float(fila[4]),
-                    "operaciones": int(fila[5])
+                    "time": fila[0],
+                    "open": float(fila[1]),
+                    "high": float(fila[2]),
+                    "low": float(fila[3]),
+                    "close": float(fila[4]),
+                    "volume": int(fila[5])
                 })
     elif formato == "JSON":
         with open('MonedasJSON/' + archivo, "r") as json_file:
@@ -37,12 +39,27 @@ def leer_datos(archivo, formato):
 
     return datos
 
-def graficar_velas(datos):
-    fechas = [item["fecha"] for item in datos]
-    aperturas = [item["apertura"] for item in datos]
-    cierres = [item["cierre"] for item in datos]
-    maximos = [item["maximo"] for item in datos]
-    minimos = [item["minimo"] for item in datos]
+def graficar_velas(datos, formato):
+
+    fechas = []
+    aperturas = []
+    cierres = []
+    maximos = []
+    minimos = []
+
+    if formato == "CSV":
+        fechas = [item["time"] for item in datos]
+        aperturas = [item["open"] for item in datos]
+        cierres = [item["close"] for item in datos]
+        maximos = [item["high"] for item in datos]
+        minimos = [item["low"] for item in datos]
+
+    elif formato == "JSON":
+        fechas = datos["time"]
+        aperturas = datos["open"]
+        cierres = datos["close"]
+        maximos = datos["high"]
+        minimos = datos["low"]
 
     plt.figure(figsize=(16, 8))
 
@@ -54,9 +71,16 @@ def graficar_velas(datos):
 
     plt.ylabel("Precios")
     plt.title("Gráfico de Velas Japonesas")
+    
 
-def calcular_medias_moviles(datos, ventana):
-    cierres = [item["cierre"] for item in datos]
+def calcular_medias_moviles(datos, ventana, formato):
+    cierres = []
+    if formato == "CSV":
+        cierres = [item["close"] for item in datos]
+
+    elif formato == "JSON":
+        cierres = datos["close"]
+
     medias_moviles = []
 
     for i in range(len(cierres) - ventana + 1):
@@ -65,26 +89,29 @@ def calcular_medias_moviles(datos, ventana):
 
     return medias_moviles
 
-def graficar_medias_moviles(datos):
+def calcular_y_graficar_medias_moviles(datos, formato, result_queue):
     ventana_sma5 = 5
     ventana_sma13 = 13
 
-    medias_moviles_sma5 = calcular_medias_moviles(datos, ventana_sma5)
-    medias_moviles_sma13 = calcular_medias_moviles(datos, ventana_sma13)
+    medias_moviles_sma5 = calcular_medias_moviles(datos, ventana_sma5, formato)
+    medias_moviles_sma13 = calcular_medias_moviles(datos, ventana_sma13, formato)
 
+    result_queue.put((medias_moviles_sma5, medias_moviles_sma13))
+
+def graficar_medias_moviles(medias_moviles_sma5, medias_moviles_sma13):
     color_sma5 = 'blue'
     color_sma13 = 'red'
 
     plt.figure(figsize=(10, 10))
 
     plt.subplot(2, 1, 1)
-    plt.plot(range(ventana_sma5 - 1, len(datos)), medias_moviles_sma5, color=color_sma5, label=f"SMA {ventana_sma5}", linewidth=0.5)
+    plt.plot(range(len(medias_moviles_sma5)), medias_moviles_sma5, color=color_sma5, label="SMA 5", linewidth=0.5)
     plt.ylabel("Promedio Móvil")
     plt.title("Gráfico de Promedio Móvil Simple (SMA5)")
     plt.legend()
 
     plt.subplot(2, 1, 2)
-    plt.plot(range(ventana_sma13 - 1, len(datos)), medias_moviles_sma13, color=color_sma13, label=f"SMA {ventana_sma13}", linewidth=0.5)
+    plt.plot(range(len(medias_moviles_sma13)), medias_moviles_sma13, color=color_sma13, label="SMA 13", linewidth=0.5)
     plt.xlabel("Tiempo")
     plt.ylabel("Promedio Móvil")
     plt.title("Gráfico de Promedio Móvil Simple (SMA13)")
@@ -103,8 +130,27 @@ def main():
 
     datos = leer_datos(nombreArchivo, formato)
 
-    graficar_velas(datos)
-    graficar_medias_moviles(datos)
+    # Crear una cola para pasar resultados entre hilos
+    result_queue = queue.Queue()
+
+    # Crear hilos para las tareas
+    thread_lectura = threading.Thread(target=leer_datos, args=(nombreArchivo, formato))
+    thread_calculo = threading.Thread(target=calcular_y_graficar_medias_moviles, args=(datos, formato, result_queue))
+
+    # Iniciar los hilos
+    thread_lectura.start()
+    thread_calculo.start()
+
+    # Esperar a que los hilos terminen
+    thread_lectura.join()
+    thread_calculo.join()
+
+    # Obtener los resultados de la cola
+    medias_moviles_sma5, medias_moviles_sma13 = result_queue.get()
+
+    # Generar gráficos en el hilo principal
+    graficar_velas(datos, formato)
+    graficar_medias_moviles(medias_moviles_sma5, medias_moviles_sma13)
 
 if __name__ == "__main__":
     main()
