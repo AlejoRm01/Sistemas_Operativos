@@ -66,8 +66,8 @@ def graficar_velas(datos, formato):
     for i in range(len(fechas)):
         color = "g" if cierres[i] > aperturas[i] else "r"
         plt.plot([i, i], [minimos[i], maximos[i]], color=color)
-        plt.plot([i - 0.2, i + 0.2], [aperturas[i], aperturas[i]], color=color, linewidth=0.5)
-        plt.plot([i - 0.2, i + 0.2], [cierres[i], cierres[i]], color=color, linewidth=0.5)
+        plt.plot([i - 0.2, i + 0.2], [aperturas[i], aperturas[i]], color=color, linewidth= 1)
+        plt.plot([i - 0.2, i + 0.2], [cierres[i], cierres[i]], color=color, linewidth= 1)
 
     plt.ylabel("Precios")
     plt.title("Gráfico de Velas Japonesas")
