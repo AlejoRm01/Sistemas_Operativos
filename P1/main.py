@@ -73,7 +73,7 @@ def graficar_velas(datos, formato):
     plt.title("Gráfico de Velas Japonesas")
     
 
-def calcular_medias_moviles(datos, formato, result_queue):
+def calcular_medias_moviles_sm(datos, formato, result_queue):
     ventana_sma5 = 5
     ventana_sma13 = 13
 
@@ -82,7 +82,8 @@ def calcular_medias_moviles(datos, formato, result_queue):
 
     result_queue.put((medias_moviles_sma5, medias_moviles_sma13))
 
-def calcular_medias_moviles_sm(datos, ventana, formato):
+
+def calcular_medias_moviles(datos, ventana, formato):
     cierres = []
     if formato == "CSV":
         cierres = [item["close"] for item in datos]
@@ -134,8 +135,8 @@ def main():
     result_queue = queue.Queue()
 
     # Crear hilos para las tareas
-    thread_lectura = threading.Thread(target= leer_datos, args=(nombreArchivo, formato))
-    thread_calculo = threading.Thread(target= calcular_medias_moviles_sm, args=(datos, formato, result_queue))
+    thread_lectura = threading.Thread(target=leer_datos, args=(nombreArchivo, formato))
+    thread_calculo = threading.Thread(target=calcular_medias_moviles_sm, args=(datos, formato, result_queue))
 
     # Iniciar los hilos
     thread_lectura.start()
